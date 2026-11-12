@@ -1,4 +1,6 @@
 ﻿using System;
+using Blip.Ai.Bot.Monitoring.Logging.Interface;
+using Blip.Ai.Bot.Monitoring.Logging.Services;
 using Serilog;
 using SimpleInjector;
 using Take.Blip.Builder.Hosting;
@@ -17,6 +19,7 @@ namespace Builder.Console
             this.RegisterBuilder();
             RegisterSingleton<IConfiguration, BuilderConfiguration>();
             RegisterSingleton<ILogger>(() => new LoggerConfiguration().WriteTo.Trace().CreateLogger());
+            RegisterSingleton<IBlipLogger, NullBlipLogger>();
         }
 
         public void RegisterService(Type serviceType, object instance) => RegisterSingleton(serviceType, () => instance);
