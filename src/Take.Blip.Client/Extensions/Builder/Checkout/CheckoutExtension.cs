@@ -14,7 +14,7 @@ namespace Take.Blip.Client.Extensions.Builder.Checkout
     /// a customer with a unique checkout URL. Thread safety depends on the underlying sender implementation.</remarks>
     public class CheckoutExtension : ExtensionBase, ICheckoutExtension
     {
-        private static readonly Node _paymentAddress = Node.Parse($"postmaster@payment.{Constants.DEFAULT_DOMAIN}/#MAGNA-802Y194");
+        private static readonly Node _paymentAddress = Node.Parse($"postmaster@payment.{Constants.DEFAULT_DOMAIN}");
         private const string CHECKOUT_LINK_CREATION = "/iris/payment/link";
         private const string CUSTOMER_LAST_CARD = "/iris/payment/customer/last-card";
         private const string PAY_WITH_SAVED_CARD = "/iris/payment/saved-card";
