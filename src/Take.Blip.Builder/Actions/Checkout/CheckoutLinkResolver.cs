@@ -79,6 +79,24 @@ namespace Take.Blip.Builder.Actions.Checkout
             return string.IsNullOrWhiteSpace(valueText) ? null : valueText;
         }
 
+        public static string TryGetNestedDictionaryValueAsString(
+            DictionaryDocument<string, object> document,
+            string parentKey,
+            string key
+        )
+        {
+            if (
+                document == null
+                || !document.TryGetValue(parentKey, out var value)
+                || !(value is DictionaryDocument<string, object> nestedDocument)
+            )
+            {
+                return null;
+            }
+
+            return TryGetDictionaryValueAsString(nestedDocument, key);
+        }
+
         private static bool TryGetUrlFromDictionary(DictionaryDocument<string, object> document, string key, out string absoluteUrl)
         {
             absoluteUrl = null;

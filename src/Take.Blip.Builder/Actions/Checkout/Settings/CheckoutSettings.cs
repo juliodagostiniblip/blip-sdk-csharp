@@ -1,127 +1,160 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using Take.Blip.Builder.Models;
 
 namespace Take.Blip.Builder.Actions.Checkout.Settings
 {
-    /// <summary>
-    /// Represents the configuration settings required to perform a checkout operation, including customer, product,
-    /// merchant, and transaction details.
-    /// </summary>
-    /// <remarks>All properties must be set with valid values before initiating a checkout. This class is
-    /// typically used to encapsulate all necessary information for processing a checkout request in a payment or
-    /// e-commerce workflow.</remarks>
-    public class CheckoutSettings : IValidable
+    public class CheckoutSettings : PaymentMethodSettings, IValidable
     {
-        /// <summary>
-        /// Gets or sets the customer-specific settings for the application.
-        /// </summary>
-        public CustomerSettings Customer { get; set; }
+        public const string DIGITAL_GOODS = "digital-goods";
+        public const string PHYSICAL_GOODS = "physical-goods";
+        public const string PAYMENT_METHOD_LINK = "paymentLink";
+        public const string PAYMENT_METHOD_PIX = "pix";
+        public const string PAYMENT_METHOD_BANK_SLIP = "bankSlip";
+        public const string PROVIDER_CHECKOUT = "checkout";
+        public const string PROVIDER_OWN = "ownProvider";
+        public const string PIX_KEY_CPF = "cpf";
+        public const string PIX_KEY_CNPJ = "cnpj";
+        public const string PIX_KEY_EMAIL = "email";
+        public const string PIX_KEY_PHONE = "phone";
+        public const string PIX_KEY_RANDOM = "random";
 
-        /// <summary>
-        /// Gets or sets the collection of product settings configured for the application.
-        /// </summary>
         public ProductSettings[] Products { get; set; }
-
-        /// <summary>
-        /// Gets or sets the merchant identifier associated with the transaction.
-        /// </summary>
-        public string Merchant { get; set; }
-
-        /// <summary>
-        /// Gets or sets the currency associated with the transaction or entity.
-        /// </summary>
         public string Currency { get; set; }
-
-        /// <summary>
-        /// Gets or sets the name of the channel associated with this instance.
-        /// </summary>
         public string Channel { get; set; }
-
-        /// <summary>
-        /// Gets or sets the source identifier associated with this instance.
-        /// </summary>
-        public string Source { get; set; }
-
-        /// <summary>
-        /// Gets or sets the message content associated with this instance.
-        /// </summary>
         public string Message { get; set; }
-
-        /// <summary>
-        /// Gets or sets the bot short name associated with this instance.
-        /// </summary>
-        public string BotShortName { get; set; }
-
-        /// <summary>
-        /// Processes the customer's saved-card choice instead of creating a new checkout.
-        /// </summary>
+        public string Header { get; set; }
+        public string Footer { get; set; }
+        public PaymentMethodSettings[] PaymentMethods { get; set; }
+        public string Type { get; set; } = DIGITAL_GOODS;
         public bool ProcessSavedCardResponse { get; set; }
 
-        /// <summary>
-        /// Context variable used to correlate a saved-card choice with its pending purchase.
-        /// </summary>
-        public string PendingCheckoutVariable { get; set; } = "checkout.pending";
-  
+        public CheckoutSettings[] GetPaymentMethods() => PaymentMethods == null
+            ? new[] { this }
+            : PaymentMethods.Select(method => method == null ? null : new CheckoutSettings
+            {
+                PaymentMethod = method.PaymentMethod,
+                Provider = method.Provider,
+                Customer = method.Customer,
+                Merchant = method.Merchant,
+                Source = method.Source,
+                BotShortName = method.BotShortName,
+                PaymentLink = method.PaymentLink,
+                BusinessName = method.BusinessName,
+                PixKeyType = method.PixKeyType,
+                PixKey = method.PixKey,
+                PixCode = method.PixCode,
+                BankSlipCode = method.BankSlipCode,
+                Products = Products,
+                Currency = Currency,
+                Channel = Channel,
+                Message = Message,
+                Header = Header,
+                Footer = Footer,
+                Type = Type
+            }).ToArray();
 
-        /// <summary>
-        /// Validates that all required properties for the checkout action are set.
-        /// </summary>
-        /// <remarks>Call this method before performing the checkout action to ensure that all necessary
-        /// information has been provided. This method does not perform deep validation of property values beyond
-        /// checking for null references.</remarks>
-        /// <exception cref="ValidationException">Thrown if any required property (Merchant, Customer, Products, Currency, Channel, Source, or Message) is
-        /// null.</exception>
         public void Validate()
         {
-            if (string.IsNullOrWhiteSpace(PendingCheckoutVariable))
+            if (PaymentMethods != null)
             {
-                throw new ValidationException($"The '{nameof(PendingCheckoutVariable)}' setting value is required for '{nameof(Checkout)}' action");
-            }
+                if (ProcessSavedCardResponse)
+                    throw new ValidationException("Saved-card responses cannot configure PaymentMethods.");
 
-            if (ProcessSavedCardResponse)
-            {
+                if (PaymentMethods.Length < 1 || PaymentMethods.Length > 2
+                    || PaymentMethods.Any(method => method == null)
+                    || PaymentMethods.Select(method => method.PaymentMethod).Distinct().Count() != PaymentMethods.Length)
+                    throw new ValidationException("PaymentMethods must contain one or two distinct, non-null payment method settings.");
+
+                foreach (var method in GetPaymentMethods())
+                    method.Validate();
+
                 return;
             }
 
-            if (Merchant == null)
+            if (Type != DIGITAL_GOODS && Type != PHYSICAL_GOODS)
+                throw new ValidationException($"Type must be '{DIGITAL_GOODS}' or '{PHYSICAL_GOODS}'.");
+
+            if (PaymentMethod != PAYMENT_METHOD_LINK
+                && PaymentMethod != PAYMENT_METHOD_PIX
+                && PaymentMethod != PAYMENT_METHOD_BANK_SLIP)
+                throw new ValidationException("PaymentMethod must be 'paymentLink', 'pix', or 'bankSlip'.");
+
+            if (Provider != PROVIDER_CHECKOUT && Provider != PROVIDER_OWN)
+                throw new ValidationException("Provider must be 'checkout' or 'ownProvider'.");
+
+            if (ProcessSavedCardResponse)
             {
-                throw new ValidationException($"The '{nameof(Merchant)}' setting value is required for '{nameof(Checkout)}' action");
+                if (Provider != PROVIDER_CHECKOUT || PaymentMethod != PAYMENT_METHOD_LINK)
+                    throw new ValidationException("Saved-card responses are only supported for Checkout payment links.");
+
+                return;
             }
 
-            if (Customer == null)
+            if (PaymentMethod == PAYMENT_METHOD_BANK_SLIP && Provider != PROVIDER_OWN)
+                throw new ValidationException("bankSlip is only supported with the ownProvider provider.");
+
+            if (Products == null || Products.Length == 0)
+                throw new ValidationException("At least one product is required for Payments.");
+
+            if (string.IsNullOrWhiteSpace(Currency))
+                throw new ValidationException("Currency is required for Payments.");
+
+            if (string.IsNullOrWhiteSpace(Channel))
+                throw new ValidationException("Channel is required for Payments.");
+
+            if (string.IsNullOrWhiteSpace(Message))
+                throw new ValidationException("Message is required for Payments.");
+
+            if (Provider == PROVIDER_CHECKOUT)
             {
-                throw new ValidationException($"The '{nameof(Customer)}' setting value is required for '{nameof(Checkout)}' action");
+                if (string.IsNullOrWhiteSpace(Merchant))
+                    throw new ValidationException("Merchant is required for the Checkout provider.");
+
+                if (Customer == null)
+                    throw new ValidationException("Customer is required for the Checkout provider.");
+
+                if (string.IsNullOrWhiteSpace(Source))
+                    throw new ValidationException("Source is required for the Checkout provider.");
+
+                if (string.IsNullOrWhiteSpace(BotShortName))
+                    throw new ValidationException("BotShortName is required for the Checkout provider.");
+
+                return;
             }
 
-            if (Products == null)
+            ValidateOwnProviderSettings();
+        }
+
+        private void ValidateOwnProviderSettings()
+        {
+            if (PaymentMethod == PAYMENT_METHOD_LINK)
             {
-                throw new ValidationException($"The '{nameof(Products)}' setting value is required for '{nameof(Checkout)}' action");
+                if (!Uri.TryCreate(PaymentLink, UriKind.Absolute, out var paymentLinkUri)
+                    || (paymentLinkUri.Scheme != Uri.UriSchemeHttp && paymentLinkUri.Scheme != Uri.UriSchemeHttps))
+                    throw new ValidationException("PaymentLink must be an absolute HTTP or HTTPS URL for ownProvider.");
+
             }
 
-            if (Currency == null)
+            if (PaymentMethod == PAYMENT_METHOD_PIX)
             {
-                throw new ValidationException($"The '{nameof(Currency)}' setting value is required for '{nameof(Checkout)}' action");
+                if (string.IsNullOrWhiteSpace(BusinessName)
+                    || string.IsNullOrWhiteSpace(PixKey)
+                    || string.IsNullOrWhiteSpace(PixCode))
+                    throw new ValidationException("BusinessName, PixKey, and PixCode are required for ownProvider Pix.");
+
+                if (PixKeyType != PIX_KEY_CPF
+                    && PixKeyType != PIX_KEY_CNPJ
+                    && PixKeyType != PIX_KEY_EMAIL
+                    && PixKeyType != PIX_KEY_PHONE
+                    && PixKeyType != PIX_KEY_RANDOM)
+                    throw new ValidationException("PixKeyType must be 'cpf', 'cnpj', 'email', 'phone', or 'random'.");
+
             }
 
-            if (Channel == null)
-            {
-                throw new ValidationException($"The '{nameof(Channel)}' setting value is required for '{nameof(Checkout)}' action");
-            }
-
-            if (Source == null)
-            {
-                throw new ValidationException($"The '{nameof(Source)}' setting value is required for '{nameof(Checkout)}' action");
-            }
-
-            if (Message == null)
-            {
-                throw new ValidationException($"The '{nameof(Message)}' setting value is required for '{nameof(Checkout)}' action");
-            }
-
-            if (BotShortName == null)
-            {
-                throw new ValidationException($"The '{nameof(BotShortName)}' setting value is required for '{nameof(Checkout)}' action");
-            }
+            if (PaymentMethod == PAYMENT_METHOD_BANK_SLIP && string.IsNullOrWhiteSpace(BankSlipCode))
+                throw new ValidationException("BankSlipCode is required for ownProvider bankSlip.");
         }
     }
 }

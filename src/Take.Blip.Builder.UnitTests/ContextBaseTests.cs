@@ -110,6 +110,22 @@ namespace Take.Blip.Builder.UnitTests
         }
 
         [Fact]
+        public async Task PendingCheckoutConditionShouldFindStoredCheckout()
+        {
+            AddVariableValue("checkoutPending", "pending-checkout");
+            var condition = new Condition
+            {
+                Source = ValueSource.Context,
+                Variable = "checkoutPending",
+                Comparison = ConditionComparison.Exists
+            };
+
+            var exists = await condition.EvaluateConditionAsync(Input, GetTarget(), CancellationToken);
+
+            exists.ShouldBeTrue();
+        }
+
+        [Fact]
         public async Task GetExistingVariableWithContextSourceShouldSucceed()
         {
             // Arrange

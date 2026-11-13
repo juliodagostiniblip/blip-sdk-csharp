@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Lime.Messaging.Resources.Checkout;
 using Lime.Protocol;
-using Take.Blip.Client.Extensions.Builder.Checkout.Documents;
 
 namespace Take.Blip.Client.Extensions.Builder.Checkout
 {
@@ -14,7 +14,7 @@ namespace Take.Blip.Client.Extensions.Builder.Checkout
     /// a customer with a unique checkout URL. Thread safety depends on the underlying sender implementation.</remarks>
     public class CheckoutExtension : ExtensionBase, ICheckoutExtension
     {
-        private static readonly Node _paymentAddress = Node.Parse($"postmaster@payment.{Constants.DEFAULT_DOMAIN}");
+        private static readonly Node _paymentAddress = Node.Parse($"postmaster@payment.{Constants.DEFAULT_DOMAIN}/#MAGNA-802Y194");
         private const string CHECKOUT_LINK_CREATION = "/iris/payment/link";
         private const string CUSTOMER_LAST_CARD = "/iris/payment/customer/last-card";
         private const string PAY_WITH_SAVED_CARD = "/iris/payment/saved-card";
@@ -35,7 +35,7 @@ namespace Take.Blip.Client.Extensions.Builder.Checkout
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains a Document representing the
         /// created checkout link.</returns>
-        public async Task<Document> CreateCheckOutLinkAsync(string merchant, CheckoutDocument document, CancellationToken cancellationToken)
+        public async Task<Document> CreateCheckOutLinkAsync(string merchant, PaymentCheckoutRequest document, CancellationToken cancellationToken)
         {
             var requestCommand = new Command()
             {

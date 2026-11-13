@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Lime.Protocol;
@@ -14,6 +17,7 @@ namespace Take.Blip.Builder.Actions.Checkout
     /// </summary>
     internal class CheckoutMessageSender
     {
+        internal const string OTHER_PAYMENT_METHOD_TITLE = "Outra forma";
         private readonly ISender _sender;
 
         public CheckoutMessageSender(ISender sender)
@@ -21,10 +25,13 @@ namespace Take.Blip.Builder.Actions.Checkout
             _sender = sender;
         }
 
-        public async Task SendCheckoutLinkAsync(IContext context, CheckoutSettings settings, Document checkoutLinkDocument, string checkoutLink, CancellationToken cancellationToken)
+        internal static string GetSavedCardTitle(string lastFourDigits) => $"Cartão final {lastFourDigits}";
+
+        public async Task SendCheckoutLinkAsync(IContext context, CheckoutSettings settings, Document checkoutLinkDocument, string checkoutLink, CancellationToken cancellationToken,
+            Document[] paymentDocuments = null)
         {
             var content = MetaOrderComponentFactory.ShouldSend(context, settings)
-                    ? MetaOrderComponentFactory.Create(settings, checkoutLinkDocument, checkoutLink)
+                    ? MetaOrderComponentFactory.Create(settings, checkoutLinkDocument, checkoutLink, paymentDocuments)
                     : (Document)new WebLink
                     {
                         Text = settings.Message,
@@ -36,15 +43,72 @@ namespace Take.Blip.Builder.Actions.Checkout
 
         public Task SendSavedCardOptionsAsync(IContext context, PendingCheckout pending, string lastFourDigits, CancellationToken cancellationToken)
         {
-            return SendMessageAsync(context, new Select
+            var content = new JsonDocument
             {
-                Text = $"Deseja pagar com o cartao salvo de final {lastFourDigits}?",
-                Options = new[]
+                ["type"] = "interactive",
+                ["interactive"] = new JsonDocument
                 {
-                    new SelectOption { Text = "Pagar com cartao salvo", Value = new PlainText { Text = $"checkout:{pending.ChoiceId}:saved-card" } },
-                    new SelectOption { Text = "Pagar de outra forma", Value = new PlainText { Text = $"checkout:{pending.ChoiceId}:other" } }
+                    ["type"] = "button",
+                    ["body"] = new JsonDocument
+                    {
+                        ["text"] = BuildSavedCardBodyText(pending)
+                    },
+                    ["action"] = new JsonDocument
+                    {
+                        ["buttons"] = new object[]
+                        {
+                            new JsonDocument
+                            {
+                                ["type"] = "reply",
+                                ["reply"] = new JsonDocument
+                                {
+                                    ["id"] = $"PAY_ONE_CLICK_{pending.CardId}",
+                                    ["title"] = GetSavedCardTitle(lastFourDigits)
+                                }
+                            },
+                            new JsonDocument
+                            {
+                                ["type"] = "reply",
+                                ["reply"] = new JsonDocument
+                                {
+                                    ["id"] = "ACCESS_PAYMENT_LINK",
+                                    ["title"] = OTHER_PAYMENT_METHOD_TITLE
+                                }
+                            }
+                        }
+                    }
                 }
-            }, cancellationToken);
+            };
+
+            return SendMessageAsync(context, content, cancellationToken);
+        }
+
+        private static string BuildSavedCardBodyText(PendingCheckout pending)
+        {
+            var culture = CultureInfo.GetCultureInfo("pt-BR");
+            var products = pending?.Settings?.Products ?? Array.Empty<ProductSettings>();
+            var textBuilder = new StringBuilder();
+
+            textBuilder.AppendLine("🛒 Resumo do seu pedido");
+            textBuilder.AppendLine();
+
+            foreach (var product in products)
+            {
+                var subtotal = product.Price * product.Quantity;
+                textBuilder.AppendLine($"*{product.Description}*");
+                textBuilder.AppendLine($"{product.Quantity} x R$ {product.Price.ToString("N2", culture)} = R$ {subtotal.ToString("N2", culture)}");
+                textBuilder.AppendLine();
+            }
+
+            var total = products.Sum(product => product.Price * product.Quantity);
+            textBuilder.AppendLine("-------------------------------");
+            textBuilder.AppendLine($"*Valor total: R$ {total.ToString("N2", culture)}*");
+            textBuilder.AppendLine("-------------------------------");
+            textBuilder.AppendLine();
+            textBuilder.AppendLine("Como deseja pagar?");
+            textBuilder.AppendLine();
+
+            return textBuilder.ToString();
         }
 
         private async Task SendMessageAsync(IContext context, Document content, CancellationToken cancellationToken)

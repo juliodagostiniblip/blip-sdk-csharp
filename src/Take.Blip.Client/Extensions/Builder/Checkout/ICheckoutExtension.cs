@@ -1,7 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
+using Lime.Messaging.Resources.Checkout;
 using Lime.Protocol;
-using Take.Blip.Client.Extensions.Builder.Checkout.Documents;
 
 namespace Take.Blip.Client.Extensions.Builder.Checkout
 {
@@ -21,7 +21,7 @@ namespace Take.Blip.Client.Extensions.Builder.Checkout
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
         /// <returns>A task that represents the asynchronous operation. The task result contains a document representing the
         /// created checkout link.</returns>
-        Task<Document> CreateCheckOutLinkAsync(string merchant, CheckoutDocument document, CancellationToken cancellationToken);
+        Task<Document> CreateCheckOutLinkAsync(string merchant, PaymentCheckoutRequest document, CancellationToken cancellationToken);
 
         /// <summary>
         /// Retrieves the customer's last saved card for an existing purchase.

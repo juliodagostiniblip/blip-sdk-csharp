@@ -11,6 +11,7 @@ namespace Take.Blip.Builder.Actions.Checkout
         public CheckoutSettings Settings { get; set; }
         public string PurchaseId { get; set; }
         public string CardId { get; set; }
+        public string CardLastFourDigits { get; set; }
         public string ChoiceId { get; set; }
         public string CheckoutLink { get; set; }
         public string ReferenceId { get; set; }
